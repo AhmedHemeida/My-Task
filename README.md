@@ -9,11 +9,16 @@ A small project and task management app. Admins create projects and manage their
 ## Requirements
 
 - Node.js 18 or newer
-- MongoDB running locally (or a MongoDB Atlas connection string)
+- For option 1: MongoDB running locally, or a MongoDB Atlas connection string
+- For option 2: Docker Desktop
 
-## Getting started
+## Running the Project
 
-### 1. Backend
+There are two supported ways to start the backend. The frontend runs the same way in both, so pick one option below and then follow the frontend step.
+
+### Option 1: Run locally
+
+Backend and MongoDB both on your machine.
 
 ```bash
 cd Backend
@@ -23,9 +28,34 @@ npm run seed
 npm run dev
 ```
 
-The API runs on http://localhost:5000.
+The API runs on http://localhost:5000. `MONGO_URI` in `Backend/.env` points at `mongodb://127.0.0.1:27017/task-manager` by default, so change it if you use Atlas.
 
-### 2. Frontend
+### Option 2: Run with Docker
+
+The API and MongoDB run in containers, the frontend still runs on your machine. No local MongoDB needed.
+
+From the project root:
+
+```bash
+docker compose up -d --build
+docker compose exec api npm run seed
+```
+
+The API runs on http://localhost:5000. MongoDB is published on **27018** on the host so it does not clash with a local MongoDB on 27017, and its data lives in the `mongo-data` volume so it survives a restart.
+
+The API waits for MongoDB's healthcheck before starting, otherwise it would exit on the first connection attempt. Set `JWT_SECRET` and `CLIENT_URL` in a `.env` file next to `docker-compose.yml` to override the defaults.
+
+```bash
+docker compose logs -f api
+docker compose down
+docker compose down -v
+```
+
+The last command also deletes the database volume.
+
+### Frontend
+
+Needed for both options.
 
 ```bash
 cd Frontend
@@ -34,9 +64,9 @@ cp .env.example .env
 npm run dev
 ```
 
-The app runs on http://localhost:5173.
+The app runs on http://localhost:5173. If Vite reports that port is taken and moves to another one, set `CLIENT_URL` in `Backend/.env` to match, otherwise the API will reject the browser's requests as a CORS error.
 
-### Seeded accounts
+## Seeded accounts
 
 `npm run seed` clears the database and inserts one admin, two members, two projects and five tasks.
 
@@ -188,27 +218,6 @@ Swagger UI is served by the API itself:
 - http://localhost:5000/api/docs.json for the raw OpenAPI 3.0 document
 
 The spec lives in `Backend/src/openapi.json`. Click **Authorize** in Swagger UI and paste a token from `POST /auth/login` to try the protected endpoints.
-
-## Docker
-
-`docker-compose.yml` runs the API and MongoDB together. It does not include the frontend, run that with `npm run dev`.
-
-```bash
-docker compose up -d --build
-docker compose exec api npm run seed
-```
-
-The API is published on http://localhost:5000. MongoDB is published on **27018** on the host so it does not clash with a local MongoDB on 27017, and its data lives in the `mongo-data` volume so it survives a restart.
-
-The API waits for MongoDB's healthcheck before starting, otherwise it would exit on the first connection attempt. Set `JWT_SECRET` and `CLIENT_URL` in a `.env` file next to `docker-compose.yml` to override the defaults.
-
-```bash
-docker compose logs -f api
-docker compose down
-docker compose down -v
-```
-
-The last command also deletes the database volume.
 
 ## Postman
 
