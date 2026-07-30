@@ -6,6 +6,65 @@ A small project and task management app. Admins create projects and manage their
 - **Frontend:** React 19 (Vite), React Router, axios, Tailwind CSS 4
 - **Tests:** Jest + Supertest with an in-memory MongoDB
 
+## Implemented Features
+
+### Core Requirements
+
+**Authentication**
+
+- Register and login
+- JWT authentication
+- Password hashing with bcrypt
+- Protected routes
+- Admin and Member roles
+
+**Projects**
+
+- Create, read, update and delete projects
+- Admin can add and remove project members
+- Users only see projects they have access to
+
+**Tasks**
+
+- Create, read, update and delete tasks
+- Fields: title, description, status, priority, dueDate, creator, assignee
+- Status: Todo, In Progress, Done
+- Filtering by status, priority and assignee
+- Unauthorized access prevented
+
+**Frontend**
+
+- Login page and register page
+- Dashboard
+- Project list and project details pages
+- Task management UI
+- Responsive design using Tailwind CSS
+- Loading, empty, success and error states
+- Client-side validation
+
+**Backend**
+
+- REST APIs with proper status codes
+- Request validation
+- Centralized error handling
+- Environment variables
+- MongoDB persistence with Mongoose
+- Seed data for one admin, two members and sample project and task data
+
+**Testing**
+
+- 17 backend tests with Jest and Supertest
+
+**Documentation**
+
+- README, `.env.example` and Postman collection
+
+### Bonus Features
+
+- Pagination, sorting and search for projects and tasks
+- Swagger / OpenAPI documentation served at `/api/docs`
+- Docker Compose setup for the Express app and MongoDB
+
 ## Requirements
 
 - Node.js 18 or newer
