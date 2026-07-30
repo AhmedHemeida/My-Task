@@ -1,0 +1,616 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Task Manager API",
+    "version": "1.0.0",
+    "description": "Projects and tasks with JWT authentication. Admins manage projects and their members, members work on the tasks of the projects they belong to."
+  },
+  "servers": [{ "url": "http://localhost:5000/api" }],
+  "tags": [
+    { "name": "Auth" },
+    { "name": "Users" },
+    { "name": "Projects" },
+    { "name": "Tasks" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "parameters": {
+      "page": {
+        "name": "page",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "default": 1 }
+      },
+      "limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 }
+      },
+      "search": {
+        "name": "search",
+        "in": "query",
+        "description": "Case insensitive match, escaped and treated as literal text.",
+        "schema": { "type": "string" }
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "6712f0c9a1b2c3d4e5f60001" },
+          "name": { "type": "string", "example": "Sara Ali" },
+          "email": { "type": "string", "example": "sara@taskmanager.com" },
+          "role": { "type": "string", "enum": ["admin", "member"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string", "example": "Website Redesign" },
+          "description": { "type": "string" },
+          "owner": { "$ref": "#/components/schemas/User" },
+          "members": { "type": "array", "items": { "$ref": "#/components/schemas/User" } },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "title": { "type": "string", "example": "Design the landing page" },
+          "description": { "type": "string" },
+          "status": { "type": "string", "enum": ["Todo", "In Progress", "Done"] },
+          "priority": { "type": "string", "enum": ["Low", "Medium", "High"] },
+          "dueDate": { "type": "string", "format": "date-time", "nullable": true },
+          "project": { "type": "string" },
+          "creator": { "$ref": "#/components/schemas/User" },
+          "assignee": { "oneOf": [{ "$ref": "#/components/schemas/User" }], "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "PaginatedProjects": {
+        "type": "object",
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/Project" } },
+          "total": { "type": "integer", "example": 12 },
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 10 },
+          "totalPages": { "type": "integer", "example": 2 }
+        }
+      },
+      "PaginatedTasks": {
+        "type": "object",
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
+          "total": { "type": "integer" },
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "totalPages": { "type": "integer" }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "properties": { "message": { "type": "string" } }
+      },
+      "ValidationError": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "Validation failed" },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string", "example": "password" },
+                "message": { "type": "string", "example": "Password must be at least 6 characters" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "ValidationFailed": {
+        "description": "Validation failed or an id is not a valid ObjectId",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing, invalid or expired token",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+      },
+      "Forbidden": {
+        "description": "Authenticated but not allowed to perform this action",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Health check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "example": "ok" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Create an account",
+        "description": "New accounts always get the member role.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "password"],
+                "properties": {
+                  "name": { "type": "string", "example": "Nour Adel" },
+                  "email": { "type": "string", "example": "nour@taskmanager.com" },
+                  "password": { "type": "string", "minLength": 6, "example": "secret123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "409": {
+            "description": "Email is already registered",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Log in and receive a token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "example": "admin@taskmanager.com" },
+                  "password": { "type": "string", "example": "Admin123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logged in",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": {
+            "description": "Invalid email or password",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Current user",
+        "responses": {
+          "200": {
+            "description": "The logged in user",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "List all users",
+        "description": "Admin only. Used to pick project members and assignees.",
+        "responses": {
+          "200": {
+            "description": "All users",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/User" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "List projects the user can access",
+        "description": "Admins see every project. Members see only the projects they own or belong to.",
+        "parameters": [
+          { "$ref": "#/components/parameters/page" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/search" },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Prefix with - for descending. Unknown fields fall back to -createdAt.",
+            "schema": {
+              "type": "string",
+              "enum": ["createdAt", "-createdAt", "name", "-name"],
+              "default": "-createdAt"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of projects",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PaginatedProjects" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Create a project",
+        "description": "Admin only. The creator becomes the owner.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "example": "Website Redesign" },
+                  "description": { "type": "string", "example": "Rebuild the marketing website" },
+                  "members": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "User ids to add as members"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Project" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/projects/{id}": {
+      "parameters": [
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Get one project",
+        "responses": {
+          "200": {
+            "description": "The project with its owner and members",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Project" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Projects"],
+        "summary": "Update a project",
+        "description": "Admin only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project updated",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Project" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Delete a project and its tasks",
+        "description": "Admin only.",
+        "responses": {
+          "200": {
+            "description": "Project deleted",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/projects/{id}/members": {
+      "parameters": [
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Add a member to a project",
+        "description": "Admin only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId"],
+                "properties": { "userId": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Member added",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Project" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "User is already a member",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+          }
+        }
+      }
+    },
+    "/projects/{id}/members/{userId}": {
+      "parameters": [
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Remove a member from a project",
+        "description": "Admin only. Tasks in this project assigned to the removed member become unassigned.",
+        "responses": {
+          "200": {
+            "description": "Member removed",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Project" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "List tasks",
+        "description": "Without the project filter the response covers every project the user can access.",
+        "parameters": [
+          { "name": "project", "in": "query", "schema": { "type": "string" } },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["Todo", "In Progress", "Done"] }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["Low", "Medium", "High"] }
+          },
+          { "name": "assignee", "in": "query", "schema": { "type": "string" } },
+          { "$ref": "#/components/parameters/page" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/search" },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Prefix with - for descending. Unknown fields fall back to -createdAt.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "-createdAt",
+                "dueDate",
+                "-dueDate",
+                "title",
+                "-title",
+                "status",
+                "-status"
+              ],
+              "default": "-createdAt"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of tasks",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PaginatedTasks" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Create a task",
+        "description": "Any user with access to the project. The assignee must also have access to it.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "project"],
+                "properties": {
+                  "title": { "type": "string", "example": "Design the landing page" },
+                  "description": { "type": "string" },
+                  "status": { "type": "string", "enum": ["Todo", "In Progress", "Done"] },
+                  "priority": { "type": "string", "enum": ["Low", "Medium", "High"] },
+                  "dueDate": { "type": "string", "format": "date", "nullable": true },
+                  "project": { "type": "string" },
+                  "assignee": { "type": "string", "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Task created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Task" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/tasks/{id}": {
+      "parameters": [
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get one task",
+        "responses": {
+          "200": {
+            "description": "The task",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Task" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Tasks"],
+        "summary": "Update a task",
+        "description": "Any user with access to the task's project.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "status": { "type": "string", "enum": ["Todo", "In Progress", "Done"] },
+                  "priority": { "type": "string", "enum": ["Low", "Medium", "High"] },
+                  "dueDate": { "type": "string", "format": "date", "nullable": true },
+                  "assignee": { "type": "string", "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task updated",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Task" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Tasks"],
+        "summary": "Delete a task",
+        "description": "Only the task creator or an admin.",
+        "responses": {
+          "200": {
+            "description": "Task deleted",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+          },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    }
+  }
+}
